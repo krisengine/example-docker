@@ -52,3 +52,100 @@ docker run -p 8081:80 -v "<путь_к_папке_site>:/usr/share/nginx/html" n
 
 Сайт должен быть статическим (т.е. не содержать никаких скриптов на PHP) и иметь файл index.html в корневой папке.
 
+### Сборка кастомного контейнера 
+
+Чтобы собрать свой контейнер с php и composer необходимо выполнить последовательность действий:
+- выбрать ОС с которой будем работать, а точнее базовый образ. При использовании докера образы создаются на основе уже существующих образов (В примере будет очень легковесный Linux Alpine)
+- установить в контейнер php с расширениями json, openssl, phar, iconv, mbstring
+- установить composer
+- назначить рабочую папку (с которой будет работать вебсервер)
+- задокументировать порт на котором будет доступен сайт
+- сделать автозапуск [стандартного dev сервера php](https://www.php.net/manual/ru/features.commandline.webserver.php)
+
+Чтобы не запускать все команды вручную, можно их записать в файл, понятный декеру в формате [Dokerfile](https://docs.docker.com/engine/reference/builder/)
+
+Создадим папку php и добавим в неё 2 файла с именами Dockerfile и index.php
+
+```dockerfile
+FROM alpine:3.13
+RUN apk add --no-cache php-cli php-json php-openssl php-phar gnu-libiconv php-iconv php-mbstring
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && php composer-setup.php --install-dir=bin --filename=composer && php -r "unlink('composer-setup.php');"
+WORKDIR /app
+EXPOSE 8000
+ENTRYPOINT ["/usr/bin/php", "-S", "0.0.0.0:8000"]
+```
+
+```php
+<?php phpinfo();
+```
+
+теперь можно перейти в папку php в командной строке и выполнить сборку образа:
+```
+docker build -t myphp .
+```
+где myphp - название нового образа.
+
+После сборки можно запустить контейнер на основе созданного образа
+```
+docker run -v "<путь_к_папке_php>:/app" -p 8082:8000 myphp
+```
+
+Теперь открываем сайт [http://localhost:8082/](http://localhost:8082/) и видем phpinfo
+
+### Запуск команды в контейнере
+
+Попробуем сделать пример посложнее. создадим новую папку slim и создадим в ней 2 файла composer.json и index.php
+
+```json
+{
+    "require": {
+        "php": "^7.2",
+        "ext-json": "*",
+        "monolog/monolog": "^2.2",
+        "php-di/php-di": "^6.3",
+        "slim/psr7": "^1.3",
+        "slim/slim": "^4.7"
+    }
+}
+```
+
+```php
+<?php
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Factory\AppFactory;
+
+require __DIR__ . '/vendor/autoload.php';
+
+$app = AppFactory::create();
+
+$app->get('/', function (Request $request, Response $response, array $args) {
+    $response->getBody()->write("Hello world !!!");
+    return $response;
+});
+
+$app->run();
+
+```
+
+теперь запустим этот код в нашем контейнере указав путь к папке slim
+```
+docker run -v "<путь_к_папке_slim>:/app" -p 8082:8000 myphp
+```
+
+Открываем сайт [http://localhost:8082/](http://localhost:8082/) и видим ошибку 500. При этом в командной строка мы 
+видим ошибку ```require(/app/vendor/autoload.php): failed to open stream: No such file or directory```. Все верно,
+композером мы ничего не устанавливали. при сборке контейнера, мы установили его в контейнер. отсталось просто запустить 
+контейнер с командой ```composer install```. но команда не выполнится, т.к. она дописывается к существующему entrypoint.
+чтобы команда выполнилась, entrypoint нужно сделать пустым, что мы и сделаем при запуске контейнера:
+```
+docker run -v "<путь_к_папке_slim>:/app" -p 8082:8000 --entrypoint="" myphp composer install
+```
+
+после установки всех пакетов можно запускать контейнер
+```
+docker run -v "<путь_к_папке_slim>:/app" -p 8082:8000 myphp
+```
+
+Открываем сайт [http://localhost:8082/](http://localhost:8082/) и видим "Hello world !!!"
+
