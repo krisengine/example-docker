@@ -1,0 +1,3 @@
+FROM httpd:2.4
+RUN a2enmod actions fastcgi alias proxy_fcgi
+COPY ./000-default.conf /etc/apache2/sites-available/000-default.conf
