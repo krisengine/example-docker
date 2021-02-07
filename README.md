@@ -199,7 +199,7 @@ docker stop myphp_container
 Для начала нам потребуется настроить веб-сервер (на базе nginx).
 Сделаем заранее заготовленный конфиг виртуального хоста по-умолчанию
 
-(файл 000-default.conf) 
+(файл default.conf) 
 ```
 server {
     listen 80 default_server;
