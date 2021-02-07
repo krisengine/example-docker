@@ -1,0 +1,38 @@
+version: "2"
+networks:
+  damp-net:
+    driver: bridge
+
+services:
+  web-server:
+    build: ./images/web-server
+    ports:
+      - 8080:80
+    container_name: web-server
+    networks:
+      - damp-net
+    volumes:
+      - ./app:/app
+  db:
+    image: mysql:5.7
+    container_name: db
+    networks:
+      - damp-net
+    volumes:
+      - ./volumes/db:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=main
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_ROOT_PASSWORD=root_password
+  php:
+    build: ./images/php
+    container_name: php
+    networks:
+      - damp-net
+    volumes:
+      - ./app:/app
+    environment:
+      - DB_DSN=mysql:host=db;dbname=main
+      - DB_USER=user
+      - DB_PASSWORD=password

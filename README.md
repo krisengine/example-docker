@@ -335,3 +335,155 @@ docker rm php
 docker rm db
 docker network remove damp-net 
 ```
+
+
+## Оркестратор docker-compose
+
+Оркестровка — автоматическое размещение, координация и управление сложными компьютерными 
+системами и службами. Для оркестровки контейнеров докера есть множество оркестраторов. 
+наиболее простым является docker-compose
+
+Конфигурация docker-compose выполняется с помощью yaml файла (структура которого зависит от версии 
+конфигуратора, которая указывается в начале файла в параметре version)
+
+создадим файл папку damp-compose и разместим в ней файл docker-compose.yaml
+
+```yaml
+version: "2"
+networks:
+  damp-net:
+    driver: bridge
+```
+
+В данном файле мы использовали версию конфигуратора 2 и описали сеть. 
+Скопируем папку app из предыдущего примера в папку damp-compose.
+Создадим папку images и в ней папку web-server. В папку web-server перенесем файл default.conf 
+из предыдущего примера и файл Dockerfile-web-server переименовав его в Dockerfile.
+А в файл docker-compose.yaml добавим раздел сервисов и опишем сервис web-server
+
+```yaml
+services:
+  web-server:
+    build: ./images/web-server
+    ports:
+      - 8080:80
+    container_name: web-server
+    networks:
+      - damp-net
+    volumes:
+      - ./app:/app
+```
+
+Можно провести параллель с командой сборки запуска веб-сервера из предыдущего примера (при данной конфигурации 
+подразумевается сборка при запуске, а не "отдельно сборка, отдельно запуск").
+Так же создадим папку volumes и добавим в конфиг сервис db.
+
+```yaml
+services:
+  web-server: .....................
+  db:
+    image: mysql:5.7
+    container_name: db
+    networks:
+      - damp-net
+    volumes:
+      - ./volumes/db:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=main
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_ROOT_PASSWORD=root_password
+```
+
+Осталось добавить php. Создадим папку php в папке images и скопируем в нее файл Dockerfile-php переименовав его 
+в Dockerfile. И добавим конфигурацию сервиса в docker-compose.yaml
+
+```yaml
+services:
+  web-server: .....................
+  db: .....................
+  php:
+      build: ./images/php
+      container_name: php
+      networks:
+        - damp-net
+      volumes:
+        - ./app:/app
+      environment:
+        - DB_DSN=mysql:host=db;dbname=main
+        - DB_USER=user
+        - DB_PASSWORD=password
+```
+
+В итоге мы получили следующий файл docker-compose.yaml
+
+```yaml
+version: "2"
+networks:
+  damp-net:
+    driver: bridge
+services:
+  web-server:
+    build: ./images/web-server
+    ports:
+      - 8080:80
+    container_name: web-server
+    networks:
+      - damp-net
+    volumes:
+      - ./app:/app
+  db:
+    image: mysql:5.7
+    container_name: db
+    networks:
+      - damp-net
+    volumes:
+      - ./volumes/db:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=main
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_ROOT_PASSWORD=root_password
+  php:
+    build: ./images/php
+    container_name: php
+    networks:
+      - damp-net
+    volumes:
+      - ./app:/app
+    environment:
+      - DB_DSN=mysql:host=db;dbname=main
+      - DB_USER=user
+      - DB_PASSWORD=password
+
+```
+
+Теперь можно все контейнеры собрать (выполнив команду в папке damp-compose)
+
+```
+docker-compose build
+```
+
+и запустить
+
+```
+docker-compose up -d
+```
+
+после запуска всех котейнеров стоит подождать секунд 15 (пока инициализируется mysql) и переходить по ссылке 
+[localhost:8080](http://localhost:8080).
+
+Чтобы выполнить команду в интерактивном режиме в конкретном контейнере нужно выполнить 
+команду exec <сервис> <команда>
+
+```
+docker-compose exec php composer init
+```
+
+
+Чтобы все контейнеры и сеть остановить нужно выполнить 
+
+```
+docker-compose down
+```
+
